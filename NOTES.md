@@ -34,13 +34,47 @@ from workflow primitives (deterministic).
 
 - [x] **Stage 1** — single agent + system prompt + CLI
 - [x] **Stage 2** — Dockerize + Makefile
-- [ ] **Stage 3** — add a tool (function tool), watch the event stream show the
-      tool call
-- [ ] **Stage 4** — multi-agent: a coordinator with `sub_agents` and LLM-driven
-      transfer (the ADK analog of a LangGraph router)
+- [x] **Stage 3** — MCP tool: we run our *own* MCP server (`mcp_server.py`) and
+      the agent calls it via `McpToolset`. See the tool call in the Events stream.
+- [x] **Stage 4** — A2A: expose the agent (`a2a_server.py`, `to_a2a`) and consume
+      it from a second agent (`a2a_consumer/`, `RemoteA2aAgent`).
+- [x] **Observability** — Langfuse tracing via OpenInference (`observability.py`).
 - [ ] **Stage 5** — workflow agents (`SequentialAgent` / `ParallelAgent`)
 - [ ] **Stage 6** — persistent sessions + memory, then `adk eval`
 - [ ] **Stage 7** — deploy beyond local Docker (Cloud Run / Vertex Agent Engine)
+
+## MCP (Stage 3)
+
+Two sides:
+- **Server** (`mcp_server.py`) — we implement tools with `FastMCP`. This is a
+  standalone process speaking MCP over stdio.
+- **Client** (`agent.py`) — `McpToolset(StdioConnectionParams(StdioServerParameters(
+  command=sys.executable, args=[mcp_server.py])))`. ADK launches the server as a
+  subprocess and exposes its tools to the LLM. `tool_filter=[...]` whitelists tools.
+
+Why MCP vs a plain ADK function tool? A function tool lives *in* your agent
+process; an MCP tool is a separate process/server you can reuse across agents and
+frameworks (the same server works with Claude Desktop, Cursor, etc.). Same idea
+as LangChain's MCP adapters.
+
+## A2A (Stage 4)
+
+- **Expose**: `to_a2a(root_agent, port=N)` → an ASGI app; serve with uvicorn.
+  Publishes an agent card at `/.well-known/agent-card.json`. Our card even lists
+  the MCP tools as A2A *skills* — the stack composes (MCP tool → agent → A2A skill).
+- **Consume**: `RemoteA2aAgent(agent_card=URL + AGENT_CARD_WELL_KNOWN_PATH)` used
+  as a normal `sub_agent`. The coordinator delegates via `transfer_to_agent`, the
+  call crosses the process boundary over A2A (JSON-RPC), runs remotely, returns.
+- **MCP vs A2A** (easy to conflate): MCP connects an agent to *tools*; A2A connects
+  an agent to *other agents*. Different layers, often used together.
+- Both are flagged `[EXPERIMENTAL]` in ADK today (warnings are expected/harmless).
+
+## Observability (Langfuse)
+
+`observability.py` calls `GoogleADKInstrumentor().instrument()` (OpenInference).
+Every model call + tool call becomes an OpenTelemetry span shipped to Langfuse.
+No-op without `LANGFUSE_*` keys. Keys live in the central store. Dashboard:
+https://us.cloud.langfuse.com . `make langfuse-check` verifies connectivity.
 
 ## Gotchas seen so far
 

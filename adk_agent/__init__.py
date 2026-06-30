@@ -9,6 +9,10 @@ from .config import load_secrets
 
 load_secrets()
 
+from .observability import setup_observability  # noqa: E402
+
+setup_observability()
+
 from . import agent  # noqa: E402  (must come after load_secrets)
 
 __all__ = ["agent"]

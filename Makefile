@@ -5,6 +5,7 @@ TAG          ?= latest
 SECRETS_FILE ?= $(HOME)/.config/secrets/secrets.env
 HOST         ?= 0.0.0.0
 PORT         ?= 18000
+A2A_PORT     ?= 8001
 Q            ?=
 
 .DEFAULT_GOAL := help
@@ -41,6 +42,18 @@ docker-run:
 docker-chat:
 	docker run --rm -it --env-file $(SECRETS_FILE) $(IMAGE):$(TAG)
 
+## a2a-serve: expose the agent over A2A (card at /.well-known/agent-card.json). Override port with A2A_PORT=
+a2a-serve:
+	A2A_PORT=$(A2A_PORT) uv run uvicorn adk_agent.a2a_server:a2a_app --host $(HOST) --port $(A2A_PORT)
+
+## a2a-card: fetch the served agent card (a2a-serve must be running)
+a2a-card:
+	@curl -s http://localhost:$(A2A_PORT)/.well-known/agent-card.json | uv run python -m json.tool
+
+## langfuse-check: verify Langfuse credentials + connectivity
+langfuse-check:
+	@uv run python -c "from adk_agent.config import load_secrets; load_secrets(); from langfuse import get_client; print('Langfuse auth_check:', get_client().auth_check())"
+
 ## secrets-check: verify the credential store has an Anthropic key
 secrets-check:
 	@grep -q '^ANTHROPIC_API_KEY=.\+' $(SECRETS_FILE) \
@@ -51,4 +64,4 @@ secrets-check:
 clean:
 	rm -rf .venv dist build *.egg-info **/__pycache__ .ruff_cache .pytest_cache
 
-.PHONY: help install ask chat web docker-build docker-run docker-chat secrets-check clean
+.PHONY: help install ask chat web a2a-serve a2a-card langfuse-check docker-build docker-run docker-chat secrets-check clean

@@ -12,15 +12,31 @@ This is **Stage 1–2** of a learning project that grows in complexity. See
 ```
 adk-agent/
 ├── adk_agent/
-│   ├── __init__.py   # loads secrets, then exposes the agent package
-│   ├── config.py     # central + local credential loading
-│   ├── agent.py      # root_agent = LlmAgent(...)  ← the only required ADK export
-│   └── cli.py        # programmatic Runner loop (one-shot + REPL)
-├── pyproject.toml    # uv-managed; defines the `adk-agent` console script
-├── Dockerfile        # slim image; secrets passed at runtime, never baked in
-├── Makefile          # all common tasks
-└── .env.example      # optional local overrides
+│   ├── __init__.py      # loads secrets + observability, then the agent package
+│   ├── config.py        # central + local credential loading
+│   ├── observability.py # Langfuse tracing (OpenInference instrumentation)
+│   ├── agent.py         # root_agent = LlmAgent(...) with the MCP toolset
+│   ├── mcp_server.py    # our own MCP server (FastMCP): current_time, roll_dice
+│   ├── a2a_server.py    # expose root_agent over A2A (to_a2a)
+│   └── cli.py           # programmatic Runner loop (one-shot + REPL)
+├── a2a_consumer/        # a 2nd agent that calls the first over A2A (RemoteA2aAgent)
+├── pyproject.toml       # uv-managed; defines the `adk-agent` console script
+├── Dockerfile           # slim image; secrets passed at runtime, never baked in
+├── Makefile             # all common tasks
+└── .env.example         # optional local overrides
 ```
+
+## Features by stage
+
+- **Stage 1–2** — single `LlmAgent` + system prompt, CLI, Docker, Makefile.
+- **Stage 3 (MCP)** — `mcp_server.py` is our own MCP server; the agent calls its
+  tools (`current_time`, `roll_dice`) via `McpToolset`. Ask "what time is it?" and
+  watch it call the tool.
+- **Stage 4 (A2A)** — `make a2a-serve` exposes the agent over A2A; `a2a_consumer/`
+  is a second agent that delegates to it. See NOTES.md for MCP-vs-A2A.
+- **Observability** — Langfuse tracing turns on automatically when `LANGFUSE_*`
+  keys are in the store. `make langfuse-check` to verify; dashboard at
+  https://us.cloud.langfuse.com.
 
 ## Credentials
 
