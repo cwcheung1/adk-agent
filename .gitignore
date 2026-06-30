@@ -15,3 +15,7 @@ venv/
 # build
 dist/
 build/
+
+# adk runtime artifacts (session db, etc.)
+.adk/
+**/.adk/
