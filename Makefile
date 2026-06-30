@@ -3,6 +3,7 @@
 IMAGE        ?= adk-agent
 TAG          ?= latest
 SECRETS_FILE ?= $(HOME)/.config/secrets/secrets.env
+HOST         ?= 0.0.0.0
 PORT         ?= 18000
 Q            ?=
 
@@ -24,9 +25,9 @@ ask:
 chat:
 	uv run adk-agent
 
-## web: launch the ADK dev web UI on PORT (default 18000)
+## web: launch the ADK dev web UI on HOST:PORT (0.0.0.0:18000 — reachable from Windows under WSL)
 web:
-	uv run adk web --port $(PORT)
+	uv run adk web --host $(HOST) --port $(PORT)
 
 ## docker-build: build the container image
 docker-build:
