@@ -4,8 +4,12 @@ A barebones [Google ADK](https://adk.dev) agent — the smallest useful shape:
 one LLM-backed agent with a system prompt, driven by a CLI, and packaged to run
 in Docker. Powered by **Anthropic Claude** through ADK's LiteLLM connector.
 
-This is **Stage 1–2** of a learning project that grows in complexity. See
-[NOTES.md](./NOTES.md) for the ADK ↔ LangGraph mental model and the roadmap.
+This is **Stage 1–2** of a learning project that grows in complexity.
+
+- **New to a concept here?** Start with [lessons/](./lessons/) — one file per
+  concept: what it is, an analogy, how it actually works, what to look at,
+  what to run.
+- **Need the dense reference/roadmap version?** See [NOTES.md](./NOTES.md).
 
 ## Layout
 
@@ -22,6 +26,10 @@ adk-agent/
 │   ├── a2a_server.py    # expose root_agent over A2A (to_a2a)
 │   └── cli.py           # programmatic Runner loop (one-shot + REPL)
 ├── a2a_consumer/        # a 2nd agent that calls the first over A2A (RemoteA2aAgent)
+├── writer_pipeline/     # SequentialAgent: draft -> critique -> revise (deterministic, not LLM-delegated)
+├── research_fanout/     # ParallelAgent: 3 angles concurrently -> synthesizer (SequentialAgent nesting a ParallelAgent)
+├── refine_loop/         # LoopAgent: critique/revise repeats until exit_loop (escalate) or max_iterations
+├── agent_as_tool/       # AgentTool: an agent called as a function (return value), not delegated to (no turn hand-off)
 ├── pyproject.toml       # uv-managed; defines the `adk-agent` console script
 ├── Dockerfile           # slim image; secrets passed at runtime, never baked in
 ├── Makefile             # all common tasks
@@ -42,6 +50,22 @@ adk-agent/
 - **Observability** — Langfuse tracing turns on automatically when `LANGFUSE_*`
   keys are in the store. `make langfuse-check` to verify; dashboard at
   https://us.cloud.langfuse.com.
+- **Stage 5 (workflow agents)** — three deterministic-composition primitives,
+  all in `lessons/05-workflow-agents.md`:
+  - `writer_pipeline/` — `SequentialAgent`: drafter → critic → reviser, chained
+    via `output_key`/`{state}` templating. `make stage5-ask Q="explain X"`.
+  - `research_fanout/` — `ParallelAgent`: 3 independent angles run
+    concurrently (verified via log timestamps, not just wall-clock), fanned
+    into a synthesizer. `make fanout-ask Q="..."`.
+  - `refine_loop/` — `LoopAgent`: critique/revise repeats until the critic
+    calls the `exit_loop` tool (`escalate=True`) or `max_iterations` hits.
+    `make refine-ask Q="explain X"`.
+- **Chapter 3 complete: agent-as-tool** — `agent_as_tool/` wraps an agent as a
+  regular tool (`AgentTool`), a 3rd way to combine agents distinct from both
+  A2A (hands off the whole turn) and workflow agents (no LLM decision at
+  all). `coordinator` calls `poet` as a tool, gets a haiku back, and keeps
+  talking — proven via `--jsonl` trace, every event's author stays
+  `coordinator`. `make tool-ask Q="explain X"`. See `lessons/05c-agent-as-tool.md`.
 
 ## Credentials
 

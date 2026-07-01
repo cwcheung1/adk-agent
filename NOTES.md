@@ -39,7 +39,13 @@ from workflow primitives (deterministic).
 - [x] **Stage 4** — A2A: expose the agent (`a2a_server.py`, `to_a2a`) and consume
       it from a second agent (`a2a_consumer/`, `RemoteA2aAgent`).
 - [x] **Observability** — Langfuse tracing via OpenInference (`observability.py`).
-- [ ] **Stage 5** — workflow agents (`SequentialAgent` / `ParallelAgent`)
+- [x] **Stage 5** — workflow agents: `SequentialAgent` (`writer_pipeline/`, a
+      draft → critique → revise chain via `output_key`/`{state}` templating),
+      `ParallelAgent` (`research_fanout/`, concurrent fan-out + synthesize),
+      `LoopAgent` (`refine_loop/`, critique/revise until satisfied via
+      `exit_loop` + `escalate`), and agent-as-tool (`agent_as_tool/`,
+      `AgentTool` — an agent called as a function, not delegated to).
+      **Chapter 3 (multi-agent orchestration) complete.**
 - [ ] **Stage 6** — persistent sessions + memory, then `adk eval`
 - [ ] **Stage 7** — deploy beyond local Docker (Cloud Run / Vertex Agent Engine)
 
@@ -93,6 +99,86 @@ implement the new one; there's no `sse` option in `mcp_server.py` on purpose.
 - **MCP vs A2A** (easy to conflate): MCP connects an agent to *tools*; A2A connects
   an agent to *other agents*. Different layers, often used together.
 - Both are flagged `[EXPERIMENTAL]` in ADK today (warnings are expected/harmless).
+
+## Workflow agents (Stage 5)
+
+Everything before this stage used **dynamic** control flow — the LLM itself
+decides whether to call a tool (MCP) or hand off to another agent
+(`transfer_to_agent` in A2A). `writer_pipeline/agent.py` is the other mode:
+**deterministic** composition, where *we* author the order and the LLM has no
+say in what runs next. This is the direct LangGraph analogue — an
+author-defined graph instead of an LLM-driven decision.
+
+- `SequentialAgent(sub_agents=[a, b, c])` runs each sub-agent in that fixed
+  order, once each, no branching.
+- Each `LlmAgent` has an `output_key` — its final text response gets written
+  to `session.state[output_key]` automatically, no manual wiring.
+- A later agent's plain string `instruction` can reference `{some_key}` and
+  ADK substitutes it from session state before calling the model (see
+  `google.adk.utils.instructions_utils.inject_session_state` — this only
+  happens for plain strings; an `InstructionProvider` callable bypasses it and
+  must build its own prompt).
+Test with `make stage5-ask Q="..."` (uses `adk run`, which prints a
+`[agent_name]: ...` line per step — the fastest way to see the pipeline
+without a browser) or `adk web` and pick `writer_pipeline` from the dropdown.
+
+### ParallelAgent (`research_fanout/`)
+
+Sub-agents run **concurrently**, not in sequence — use when they don't depend
+on each other's output (three independent "angles" on the same question here,
+each writing its own `output_key`, fanned in by a `SequentialAgent`-wrapped
+synthesizer that reads all three). Verified this is real concurrency, not
+just a fast wall-clock, by grepping ADK's own log file
+(`/tmp/agents_log/agent.<timestamp>.log`) for the three `LiteLLM completion()`
+lines — they fired **4ms apart**, not the 2-3s apart sequential calls would
+show. `SequentialAgent(sub_agents=[ParallelAgent(...), synthesizer])` — a
+workflow agent nesting another workflow agent works because both just
+implement the same `BaseAgent` contract (see `lessons/05-workflow-agents.md`
+for why `SequentialAgent` "is" an agent at all).
+
+### LoopAgent (`refine_loop/`)
+
+Repeats its sub-agents in order until either `max_iterations` is hit or any
+event carries `event.actions.escalate = True` (read straight from
+`LoopAgent._run_async_impl` in the SDK). ADK ships a ready-made tool for the
+model to trigger that: `google.adk.tools.exit_loop_tool.exit_loop` just does
+`tool_context.actions.escalate = True`. Give an `LlmAgent` that tool and tell
+it when to call it — the **model** decides when to stop, `LoopAgent` only
+enforces the mechanics (and the `max_iterations` safety net if it never does).
+`critic` and `reviser` both read/write the *same* `output_key="draft"` — each
+loop iteration critiques whatever the previous one revised it into.
+
+Confirmed the exit mechanism with `adk run --jsonl`, which shows the raw event
+structure: `critic` emits text, then `CALL exit_loop` → `RESPONSE exit_loop` →
+the event carries `escalate: True` — exactly the SDK source's mechanism, not
+an inference. Side effect worth knowing: `exit_loop` also sets
+`skip_summarization = True`, so the step that calls it produces **no**
+`[critic]: ...` line in `adk run`'s output — don't mistake the missing line
+for the loop not running.
+
+## Agent-as-tool (`agent_as_tool/`)
+
+A third way to combine two agents, distinct from both A2A (transfer_to_agent
+hands off the **entire turn**) and workflow agents (author-defined structure,
+no LLM decision at all). `AgentTool(agent=poet)` wraps an agent as a regular
+**tool** — from the calling LLM's point of view it's just a callable named
+`poet.name` with `poet.description` (confirmed by reading
+`AgentTool.__init__`: `super().__init__(name=agent.name,
+description=agent.description)`).
+
+Read `AgentTool.run_async` in the SDK to see what actually happens on a call:
+it builds a **completely separate** `Runner` + fresh `InMemorySessionService`
+for the wrapped agent, runs it to completion, and returns just its final text
+as the tool's return value. The parent's own conversation turn is never
+touched — it's a function call that happens to be backed by an LLM, not a
+hand-off.
+
+Proved this with `adk run agent_as_tool --jsonl`: every event's `author` is
+`coordinator`, **never** `poet` — contrast with A2A (lesson 4), where the
+event author literally becomes the sub-agent's name after
+`transfer_to_agent`. `coordinator` in this repo answers directly, calls
+`poet` as a tool, gets a haiku back, and keeps talking (appends the haiku to
+its own answer) — proof it never lost control of the turn.
 
 ## Observability (Langfuse)
 

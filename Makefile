@@ -59,6 +59,22 @@ mcp-serve:
 mcp-http-check:
 	@MCP_HTTP_PORT=$(MCP_HTTP_PORT) uv run python adk_agent/mcp_http_check.py
 
+## stage5-ask: one-shot question through the writer_pipeline SequentialAgent (draft -> critique -> revise)
+stage5-ask:
+	@uv run adk run writer_pipeline "$(Q)"
+
+## fanout-ask: one-shot question through research_fanout (ParallelAgent -> synthesizer)
+fanout-ask:
+	@uv run adk run research_fanout "$(Q)"
+
+## refine-ask: one-shot question through refine_loop (LoopAgent: critique/revise until satisfied)
+refine-ask:
+	@uv run adk run refine_loop "$(Q)"
+
+## tool-ask: one-shot question through agent_as_tool (coordinator calls the poet agent as a tool, keeps control after)
+tool-ask:
+	@uv run adk run agent_as_tool "$(Q)"
+
 ## langfuse-check: verify Langfuse credentials + connectivity
 langfuse-check:
 	@uv run python -c "from adk_agent.config import load_secrets; load_secrets(); from langfuse import get_client; print('Langfuse auth_check:', get_client().auth_check())"
@@ -73,4 +89,4 @@ secrets-check:
 clean:
 	rm -rf .venv dist build *.egg-info **/__pycache__ .ruff_cache .pytest_cache
 
-.PHONY: help install ask chat web a2a-serve a2a-card mcp-serve mcp-http-check langfuse-check docker-build docker-run docker-chat secrets-check clean
+.PHONY: help install ask chat web a2a-serve a2a-card mcp-serve mcp-http-check stage5-ask fanout-ask refine-ask tool-ask langfuse-check docker-build docker-run docker-chat secrets-check clean
