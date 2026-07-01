@@ -86,3 +86,14 @@ You can explain why deleting `persistent_agent/.adk/session.db` and running
 `make persist-ask Q="what's my name?"` again would make the agent forget —
 and, separately, why the *same* delete wouldn't have mattered at all for any
 earlier lesson's agent (`writer_pipeline`, `refine_loop`, etc.).
+
+## Going further: this is portable, not SQLite-specific
+
+`SqliteSessionService` (what we used) and `DatabaseSessionService` (backend-
+agnostic via SQLAlchemy) are siblings, not tiers — see NOTES.md's "SessionService
+is portable" section for the proof: `persistent_agent`, completely unchanged,
+run against a real local Postgres via
+`adk run persistent_agent --session_service_uri "postgresql+asyncpg://..."`,
+verified against the raw Postgres rows the same way as above. Also see that
+section for why the Cloud SQL Auth Proxy sidecar is *not* what you want if
+this ever ships to GKE/Cloud Run — the Python Connector is.

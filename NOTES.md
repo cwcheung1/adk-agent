@@ -196,6 +196,41 @@ it. This means **A2A and agent-as-tool are orthogonal, not competing**:
 `a2a_consumer/`, wrapped in `AgentTool` instead: verified via `--jsonl` that
 the author stays `a2a_coordinator` even though the call crosses the network.
 
+## SessionService is portable, and where it isn't (Chapter 4 follow-up)
+
+`SqliteSessionService`, `DatabaseSessionService`, `InMemorySessionService` are
+three siblings under `BaseSessionService` (confirmed via MRO) — not tiers of
+each other, and a `Runner` takes exactly one. Overlap worth knowing:
+`DatabaseSessionService` explicitly branches on `url.get_backend_name() ==
+"sqlite"` in its `__init__`, so it can *also* point at a SQLite file via
+SQLAlchemy (`db_url="sqlite+aiosqlite:///..."`) — two independent code paths
+to the same storage engine, one lighter (`SqliteSessionService`, raw
+`aiosqlite`, no extra deps) and one backend-agnostic
+(`DatabaseSessionService`, needs `google-adk[db]` + an async driver per
+backend — `asyncpg` for Postgres, since it uses `create_async_engine`, not a
+sync engine).
+
+Proved the portability claim isn't just theoretical: ran `persistent_agent`
+unchanged against a real (locally Dockerized) Postgres —
+`adk run persistent_agent --session_service_uri
+"postgresql+asyncpg://postgres:test@localhost:15432/adktest" "..."` — two
+separate invocations, same result as SQLite, verified against the raw
+Postgres `user_states`/`sessions` rows via `psql` (identical shape to the
+SQLite proof). Zero agent code changes — only the storage backend moved.
+
+**Forward-reference for Stage 7 (deployment): don't reach for the Cloud SQL
+Auth Proxy sidecar for this project.** Checked current Google guidance (web
+search, 2026): for Python specifically, on *both* Cloud Run and GKE, the
+recommended connection method is the **Cloud SQL Python Connector**
+(`cloud-sql-python-connector`) — in-process, IAM-authenticated, TLS 1.3, no
+sidecar container, no certificate/firewall management. The arg-based
+Auth Proxy (standalone or sidecar) is the documented fallback for languages
+*without* a native connector, not the default recommendation once one exists
+— GKE doesn't change this, despite not having Cloud Run's automatic
+Unix-socket injection. Wires into `DatabaseSessionService` via its `**kwargs`
+→ `create_async_engine(..., creator=connector_callable)`, not a plain URL —
+untested here, needs real GCP credentials.
+
 ## State scoping + persistence (`persistent_agent/`, Stage 6a)
 
 Every prior stage used `output_key` with **plain, unprefixed** keys — those
