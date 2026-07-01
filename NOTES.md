@@ -180,6 +180,19 @@ event author literally becomes the sub-agent's name after
 `poet` as a tool, gets a haiku back, and keeps talking (appends the haiku to
 its own answer) — proof it never lost control of the turn.
 
+**`Tool` is generic, same pattern as `Agent`.** `AgentTool`/`McpTool`/
+`FunctionTool` are all siblings under `BaseTool` (confirmed via MRO), exactly
+like `LlmAgent`/`SequentialAgent`/`RemoteA2aAgent` are siblings under
+`BaseAgent`. `McpTool` forwards a call over the MCP wire protocol to a
+separate process; `AgentTool` runs a nested agent to completion — same
+interface (`_get_declaration()` + `run_async(...)`), different thing behind
+it. This means **A2A and agent-as-tool are orthogonal, not competing**:
+`RemoteA2aAgent` is just another `BaseAgent`, so it can go in `sub_agents`
+(delegate, lesson 4) *or* get wrapped in `AgentTool` (call-and-return).
+`a2a_as_tool/agent.py` proves it — the exact same remote agent as
+`a2a_consumer/`, wrapped in `AgentTool` instead: verified via `--jsonl` that
+the author stays `a2a_coordinator` even though the call crosses the network.
+
 ## Observability (Langfuse)
 
 `observability.py` calls `GoogleADKInstrumentor().instrument()` (OpenInference).

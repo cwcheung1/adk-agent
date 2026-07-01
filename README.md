@@ -30,6 +30,7 @@ adk-agent/
 ├── research_fanout/     # ParallelAgent: 3 angles concurrently -> synthesizer (SequentialAgent nesting a ParallelAgent)
 ├── refine_loop/         # LoopAgent: critique/revise repeats until exit_loop (escalate) or max_iterations
 ├── agent_as_tool/       # AgentTool: an agent called as a function (return value), not delegated to (no turn hand-off)
+├── a2a_as_tool/         # same remote A2A agent as a2a_consumer/, wrapped in AgentTool instead of sub_agents (proves A2A + agent-as-tool are orthogonal)
 ├── pyproject.toml       # uv-managed; defines the `adk-agent` console script
 ├── Dockerfile           # slim image; secrets passed at runtime, never baked in
 ├── Makefile             # all common tasks
@@ -66,6 +67,10 @@ adk-agent/
   all). `coordinator` calls `poet` as a tool, gets a haiku back, and keeps
   talking — proven via `--jsonl` trace, every event's author stays
   `coordinator`. `make tool-ask Q="explain X"`. See `lessons/05c-agent-as-tool.md`.
+  `a2a_as_tool/` proves A2A and agent-as-tool are *orthogonal*, not
+  competing — the same `RemoteA2aAgent` from Stage 4, wrapped in `AgentTool`
+  instead of `sub_agents`. `make a2a-tool-ask Q="what time is it?"` (needs
+  `make a2a-serve` running).
 
 ## Credentials
 

@@ -75,6 +75,10 @@ refine-ask:
 tool-ask:
 	@uv run adk run agent_as_tool "$(Q)"
 
+## a2a-tool-ask: same remote A2A agent as a2a_consumer, but called via AgentTool instead of sub_agents (a2a-serve must be running)
+a2a-tool-ask:
+	@uv run adk run a2a_as_tool "$(Q)"
+
 ## langfuse-check: verify Langfuse credentials + connectivity
 langfuse-check:
 	@uv run python -c "from adk_agent.config import load_secrets; load_secrets(); from langfuse import get_client; print('Langfuse auth_check:', get_client().auth_check())"
@@ -89,4 +93,4 @@ secrets-check:
 clean:
 	rm -rf .venv dist build *.egg-info **/__pycache__ .ruff_cache .pytest_cache
 
-.PHONY: help install ask chat web a2a-serve a2a-card mcp-serve mcp-http-check stage5-ask fanout-ask refine-ask tool-ask langfuse-check docker-build docker-run docker-chat secrets-check clean
+.PHONY: help install ask chat web a2a-serve a2a-card mcp-serve mcp-http-check stage5-ask fanout-ask refine-ask tool-ask a2a-tool-ask langfuse-check docker-build docker-run docker-chat secrets-check clean
