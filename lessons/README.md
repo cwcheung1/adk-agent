@@ -22,6 +22,7 @@ Read in order — each one assumes the last:
 5b. [Workflow agents: Parallel and Loop](./05b-parallel-and-loop.md) — concurrent fan-out, and repeat-until-satisfied
 5c. [Agent-as-tool](./05c-agent-as-tool.md) — an agent as a callable, not a hand-off (3rd way to combine agents)
 6. [Observability](./06-observability.md) — seeing what actually happened
+7. [State scoping and persistence](./07-state-and-persistence.md) — memory that survives across separate conversations, not just separate turns
 
 Progress against these is tracked in the
 [learning-tracker](../../../learning-tracker) app, not in these files — treat

@@ -79,6 +79,10 @@ tool-ask:
 a2a-tool-ask:
 	@uv run adk run a2a_as_tool "$(Q)"
 
+## persist-ask: one-shot question through persistent_agent (each call is a NEW session, same fixed user_id — proves user: state survives across sessions)
+persist-ask:
+	@uv run adk run persistent_agent "$(Q)"
+
 ## langfuse-check: verify Langfuse credentials + connectivity
 langfuse-check:
 	@uv run python -c "from adk_agent.config import load_secrets; load_secrets(); from langfuse import get_client; print('Langfuse auth_check:', get_client().auth_check())"
@@ -93,4 +97,4 @@ secrets-check:
 clean:
 	rm -rf .venv dist build *.egg-info **/__pycache__ .ruff_cache .pytest_cache
 
-.PHONY: help install ask chat web a2a-serve a2a-card mcp-serve mcp-http-check stage5-ask fanout-ask refine-ask tool-ask a2a-tool-ask langfuse-check docker-build docker-run docker-chat secrets-check clean
+.PHONY: help install ask chat web a2a-serve a2a-card mcp-serve mcp-http-check stage5-ask fanout-ask refine-ask tool-ask a2a-tool-ask persist-ask langfuse-check docker-build docker-run docker-chat secrets-check clean

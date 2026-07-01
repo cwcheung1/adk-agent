@@ -31,6 +31,7 @@ adk-agent/
 ├── refine_loop/         # LoopAgent: critique/revise repeats until exit_loop (escalate) or max_iterations
 ├── agent_as_tool/       # AgentTool: an agent called as a function (return value), not delegated to (no turn hand-off)
 ├── a2a_as_tool/         # same remote A2A agent as a2a_consumer/, wrapped in AgentTool instead of sub_agents (proves A2A + agent-as-tool are orthogonal)
+├── persistent_agent/    # user:-scoped state survives across separate sessions via SqliteSessionService (adk run's default local storage)
 ├── pyproject.toml       # uv-managed; defines the `adk-agent` console script
 ├── Dockerfile           # slim image; secrets passed at runtime, never baked in
 ├── Makefile             # all common tasks
@@ -71,6 +72,14 @@ adk-agent/
   competing — the same `RemoteA2aAgent` from Stage 4, wrapped in `AgentTool`
   instead of `sub_agents`. `make a2a-tool-ask Q="what time is it?"` (needs
   `make a2a-serve` running).
+- **Stage 6a (state scoping + persistence)** — `persistent_agent/` remembers
+  your name across **separate `adk run` invocations**, not just separate
+  turns in one session — a `remember_name` tool writes `user:name` (survives
+  across sessions for the same user), verified against the raw SQLite rows,
+  not just the model's claim. Turns out we'd been using a persistent
+  `SqliteSessionService` (`adk run`'s default local storage) the whole time
+  without realizing it. `make persist-ask Q="hi, I'm <name>"` then
+  `make persist-ask Q="what's my name?"`. See NOTES.md.
 
 ## Credentials
 

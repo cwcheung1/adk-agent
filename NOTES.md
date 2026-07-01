@@ -46,7 +46,10 @@ from workflow primitives (deterministic).
       `exit_loop` + `escalate`), and agent-as-tool (`agent_as_tool/`,
       `AgentTool` — an agent called as a function, not delegated to).
       **Chapter 3 (multi-agent orchestration) complete.**
-- [ ] **Stage 6** — persistent sessions + memory, then `adk eval`
+- [x] **Stage 6a** — persistent sessions + state scoping (`persistent_agent/`,
+      `user:`-prefixed state survives across separate sessions via
+      `SqliteSessionService`, verified against the raw DB rows). Chapter 4
+      still missing: `MemoryService`/RAG, `adk eval`.
 - [ ] **Stage 7** — deploy beyond local Docker (Cloud Run / Vertex Agent Engine)
 
 ## MCP (Stage 3)
@@ -192,6 +195,47 @@ it. This means **A2A and agent-as-tool are orthogonal, not competing**:
 `a2a_as_tool/agent.py` proves it — the exact same remote agent as
 `a2a_consumer/`, wrapped in `AgentTool` instead: verified via `--jsonl` that
 the author stays `a2a_coordinator` even though the call crosses the network.
+
+## State scoping + persistence (`persistent_agent/`, Stage 6a)
+
+Every prior stage used `output_key` with **plain, unprefixed** keys — those
+live in the `sessions` table (or in-memory equivalent), scoped to one
+`session_id`. Start a new session and they're gone. `State`
+(`google.adk.sessions.state.State`) defines three prefixes that change
+*where* a key is stored: `APP_PREFIX = "app:"`, `USER_PREFIX = "user:"`,
+`TEMP_PREFIX = "temp:"`.
+
+Confirmed the actual persistence mechanism by reading
+`SqliteSessionService._merge_state`: on session load, `app_state` (one row
+per `app_name`, in the `app_states` table) and `user_state` (one row per
+`app_name`+`user_id`, in `user_states`) get merged into the session's dict
+*ahead of* `session_state` (one row per `session_id`, in `sessions`). A
+`user:`-prefixed key set in one session is therefore visible in a brand-new
+session for the same `user_id`; a plain key is not.
+
+**We'd been using a persistent SessionService all along without knowing it.**
+`adk run`'s default local storage (`--use_local_storage`, on by default) IS
+`SqliteSessionService` at `.adk/session.db` — see
+`google.adk.cli.utils.local_storage.create_local_database_session_service`.
+Every `.adk/session.db` file gitignored across every package in this repo has
+been this the whole time. `adk run` also always uses the fixed `user_id =
+'test_user'` (`google.adk.cli.cli`) across *separate* invocations — which is
+exactly what makes the demo below work with plain `adk run` calls, no custom
+`Runner`/`SessionService` wiring needed (unlike every other stage so far).
+
+`persistent_agent/agent.py`: a `remember_name` tool does
+`tool_context.state["user:name"] = name`; the instruction reads it back via
+`{user:name?}` — the `?` suffix is required for a key that might not exist
+yet (a missing key without `?` raises `KeyError` instead of substituting
+empty string — see `inject_session_state`).
+
+Verified with **two separate `adk run` process invocations** (not two turns
+in one session): tell it your name in call 1, ask "what's my name?" in a
+completely fresh call 2 — it remembers. Then verified against the raw SQLite
+rows directly (not just trusted the model's answer): `user_states` has one
+row, `{"name": "Chi"}`, keyed by `('persistent_agent', 'test_user')`; both
+`sessions` rows have `state = '{}'` — the fact lives *only* in the
+user-scoped bucket, proving it's not session continuity doing the work.
 
 ## Observability (Langfuse)
 
