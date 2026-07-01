@@ -46,16 +46,41 @@ from workflow primitives (deterministic).
 ## MCP (Stage 3)
 
 Two sides:
-- **Server** (`mcp_server.py`) — we implement tools with `FastMCP`. This is a
-  standalone process speaking MCP over stdio.
-- **Client** (`agent.py`) — `McpToolset(StdioConnectionParams(StdioServerParameters(
-  command=sys.executable, args=[mcp_server.py])))`. ADK launches the server as a
-  subprocess and exposes its tools to the LLM. `tool_filter=[...]` whitelists tools.
+- **Server** (`mcp_server.py`) — we implement tools with `FastMCP`.
+- **Client** (`agent.py`) — `McpToolset(...)`, connection params depend on transport.
 
 Why MCP vs a plain ADK function tool? A function tool lives *in* your agent
 process; an MCP tool is a separate process/server you can reuse across agents and
 frameworks (the same server works with Claude Desktop, Cursor, etc.). Same idea
 as LangChain's MCP adapters.
+
+### Two transports, chosen by `MCP_TRANSPORT`
+
+**stdio (default).** `McpToolset(StdioConnectionParams(StdioServerParameters(
+command=sys.executable, args=[mcp_server.py])))`. ADK **spawns** `mcp_server.py`
+as a subprocess and talks over its stdin/stdout — plain OS pipes, like
+`cmd1 | cmd2`. No socket, no port: the wire format is just newline-delimited
+JSON-RPC messages written to the child's stdin and read from its stdout (see
+`mcp.client.stdio.stdio_client` in the SDK). This only works because the
+*client* owns the server's process lifecycle — guaranteed same machine.
+
+**streamable-http.** `mcp_server.py` runs standalone (`make mcp-serve`), and
+the agent connects over the network via `StreamableHTTPConnectionParams(url=
+"http://host:port/mcp")` (`MCP_TRANSPORT=streamable-http make ask Q=...`).
+Needed when the server isn't something you spawn — a shared tool server other
+agents/processes also hit, or one that outlives any single client. Sanity-check
+independent of ADK with `make mcp-http-check` (uses the raw `mcp` client SDK:
+`initialize` → `list_tools` → `call_tool`).
+
+**Why not SSE?** MCP's original HTTP transport (spec 2024-11-05, "HTTP+SSE")
+required a mandatory long-lived `GET /sse` stream pinned to one server process
+for *all* responses, plus a separate `POST /messages` that just returned `202`
+— bad fit for load-balanced/serverless infra, and proxies tend to kill idle
+long connections. The 2025-03-26 spec replaced it with **Streamable HTTP**: a
+single endpoint where `POST` returns the JSON-RPC response directly in the
+HTTP body (ordinary request/response), and SSE becomes an *optional* per-request
+upgrade only when the server needs to stream multiple messages back. We
+implement the new one; there's no `sse` option in `mcp_server.py` on purpose.
 
 ## A2A (Stage 4)
 

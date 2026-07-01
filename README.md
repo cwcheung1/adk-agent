@@ -17,6 +17,8 @@ adk-agent/
 │   ├── observability.py # Langfuse tracing (OpenInference instrumentation)
 │   ├── agent.py         # root_agent = LlmAgent(...) with the MCP toolset
 │   ├── mcp_server.py    # our own MCP server (FastMCP): current_time, roll_dice
+│   │                    #   supports stdio (default) and streamable-http transports
+│   ├── mcp_http_check.py # standalone client sanity-check for the http transport
 │   ├── a2a_server.py    # expose root_agent over A2A (to_a2a)
 │   └── cli.py           # programmatic Runner loop (one-shot + REPL)
 ├── a2a_consumer/        # a 2nd agent that calls the first over A2A (RemoteA2aAgent)
@@ -31,7 +33,10 @@ adk-agent/
 - **Stage 1–2** — single `LlmAgent` + system prompt, CLI, Docker, Makefile.
 - **Stage 3 (MCP)** — `mcp_server.py` is our own MCP server; the agent calls its
   tools (`current_time`, `roll_dice`) via `McpToolset`. Ask "what time is it?" and
-  watch it call the tool.
+  watch it call the tool. Default transport is stdio (ADK spawns the server);
+  set `MCP_TRANSPORT=streamable-http` to instead run it standalone (`make
+  mcp-serve`) and connect over HTTP — see NOTES.md for stdio-vs-HTTP and why we
+  use Streamable HTTP, not the older HTTP+SSE transport.
 - **Stage 4 (A2A)** — `make a2a-serve` exposes the agent over A2A; `a2a_consumer/`
   is a second agent that delegates to it. See NOTES.md for MCP-vs-A2A.
 - **Observability** — Langfuse tracing turns on automatically when `LANGFUSE_*`

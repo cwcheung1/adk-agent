@@ -5,7 +5,8 @@ TAG          ?= latest
 SECRETS_FILE ?= $(HOME)/.config/secrets/secrets.env
 HOST         ?= 0.0.0.0
 PORT         ?= 18000
-A2A_PORT     ?= 8001
+A2A_PORT     ?= 18001
+MCP_HTTP_PORT ?= 18002
 Q            ?=
 
 .DEFAULT_GOAL := help
@@ -50,6 +51,14 @@ a2a-serve:
 a2a-card:
 	@curl -s http://localhost:$(A2A_PORT)/.well-known/agent-card.json | uv run python -m json.tool
 
+## mcp-serve: run mcp_server.py standalone over streamable-http (not stdio). Override port with MCP_HTTP_PORT=
+mcp-serve:
+	MCP_TRANSPORT=streamable-http MCP_HTTP_HOST=$(HOST) MCP_HTTP_PORT=$(MCP_HTTP_PORT) uv run python adk_agent/mcp_server.py
+
+## mcp-http-check: initialize + list_tools + call current_time against the running mcp-serve
+mcp-http-check:
+	@MCP_HTTP_PORT=$(MCP_HTTP_PORT) uv run python adk_agent/mcp_http_check.py
+
 ## langfuse-check: verify Langfuse credentials + connectivity
 langfuse-check:
 	@uv run python -c "from adk_agent.config import load_secrets; load_secrets(); from langfuse import get_client; print('Langfuse auth_check:', get_client().auth_check())"
@@ -64,4 +73,4 @@ secrets-check:
 clean:
 	rm -rf .venv dist build *.egg-info **/__pycache__ .ruff_cache .pytest_cache
 
-.PHONY: help install ask chat web a2a-serve a2a-card langfuse-check docker-build docker-run docker-chat secrets-check clean
+.PHONY: help install ask chat web a2a-serve a2a-card mcp-serve mcp-http-check langfuse-check docker-build docker-run docker-chat secrets-check clean

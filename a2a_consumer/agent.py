@@ -26,7 +26,7 @@ load_dotenv(".env", override=False)
 load_dotenv(Path.home() / ".config" / "secrets" / "secrets.env", override=False)
 
 MODEL = os.getenv("ADK_MODEL", "anthropic/claude-haiku-4-5-20251001")
-REMOTE_AGENT_URL = os.getenv("REMOTE_AGENT_URL", "http://localhost:8001")
+REMOTE_AGENT_URL = os.getenv("REMOTE_AGENT_URL", "http://localhost:18001")
 
 remote_utility_agent = RemoteA2aAgent(
     name="utility_agent",

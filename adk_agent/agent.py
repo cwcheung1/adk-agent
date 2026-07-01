@@ -13,7 +13,7 @@ import sys
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools.mcp_tool import McpToolset
+from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
 from mcp import StdioServerParameters
 
@@ -31,19 +31,33 @@ SYSTEM_INSTRUCTION = (
     "If you are unsure or lack the information, say so plainly instead of guessing."
 )
 
-# MCP toolset: connects (as a client) to our own MCP server in mcp_server.py,
-# which ADK launches as a subprocess over stdio. `sys.executable` ensures we use
-# the same interpreter/venv both locally and inside the container.
-_MCP_SERVER = os.path.join(os.path.dirname(__file__), "mcp_server.py")
+# MCP toolset: connects (as a client) to our own MCP server in mcp_server.py.
+# Two ways to reach it, chosen by MCP_TRANSPORT:
+#   "stdio" (default) — ADK spawns mcp_server.py itself as a subprocess and
+#     talks over its stdin/stdout. `sys.executable` ensures the same
+#     interpreter/venv both locally and inside the container. No port involved.
+#   "streamable-http" — mcp_server.py must already be running standalone
+#     (`make mcp-serve`); the agent connects over the network instead.
+_MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
 
-utils_toolset = McpToolset(
-    connection_params=StdioConnectionParams(
-        server_params=StdioServerParameters(
-            command=sys.executable,
-            args=[_MCP_SERVER],
+if _MCP_TRANSPORT == "streamable-http":
+    _MCP_HTTP_HOST = os.getenv("MCP_HTTP_HOST", "127.0.0.1")
+    _MCP_HTTP_PORT = os.getenv("MCP_HTTP_PORT", "18002")
+    utils_toolset = McpToolset(
+        connection_params=StreamableHTTPConnectionParams(
+            url=f"http://{_MCP_HTTP_HOST}:{_MCP_HTTP_PORT}/mcp",
         ),
-    ),
-)
+    )
+else:
+    _MCP_SERVER = os.path.join(os.path.dirname(__file__), "mcp_server.py")
+    utils_toolset = McpToolset(
+        connection_params=StdioConnectionParams(
+            server_params=StdioServerParameters(
+                command=sys.executable,
+                args=[_MCP_SERVER],
+            ),
+        ),
+    )
 
 root_agent = LlmAgent(
     name="adk_agent",

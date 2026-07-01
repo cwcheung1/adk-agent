@@ -18,6 +18,6 @@ from .agent import root_agent
 
 # `port` is baked into the URLs advertised in the agent card, so it must match
 # the port uvicorn serves on. Keep A2A_PORT consistent across both.
-A2A_PORT = int(os.getenv("A2A_PORT", "8001"))
+A2A_PORT = int(os.getenv("A2A_PORT", "18001"))
 
 a2a_app = to_a2a(root_agent, port=A2A_PORT)
